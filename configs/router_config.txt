@@ -1,0 +1,39 @@
+! =====================================================================
+! Cisco IOS MQC Configuration for Hierarchical QoS (SHAPE-WITH-OSPF)
+! Target: Core Router R1 Egress Interface (FastEthernet2/0)
+! =====================================================================
+
+! 1. Extended Access Lists for Application Classification
+access-list 101 permit udp any any eq 5201
+access-list 102 permit udp any any eq 5202
+access-list 103 permit tcp any any eq 5203
+
+! 2. Class Maps Mapping Access Groups
+class-map match-all VOICE
+ match access-group 101
+class-map match-all VIDEO
+ match access-group 102
+class-map match-all DATA
+ match access-group 103
+
+! 3. Child Policy Map (LLQ / CBWFQ Policy)
+policy-map LLQ_POLICY
+ class VOICE
+  priority percent 20          ! Allocates ~400 kbps strict priority queue (Burst = 12500 bytes)
+ class VIDEO
+  bandwidth percent 25         ! Guarantees 500 kbps minimum bandwidth share
+ class DATA
+  bandwidth percent 30         ! Guarantees 600 kbps minimum bandwidth share
+ class class-default
+  bandwidth remaining percent 25 ! Manages unclassified residual traffic fairly
+
+! 4. Parent Hierarchical Shaping Policy Map
+policy-map SHAPE-WITH-OSPF
+ class class-default
+  shape average 2000000        ! Enforces 2 Mbps egress bottleneck rate limit
+  service-policy LLQ_POLICY
+
+! 5. Interface Application
+interface FastEthernet2/0
+ bandwidth 2000
+ service-policy output SHAPE-WITH-OSPF
